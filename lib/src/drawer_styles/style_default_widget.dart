@@ -7,6 +7,7 @@ class StyleDefaultWidget extends StatelessWidget {
     required this.showShadow,
     required this.angle,
     required this.menuScreenWidget,
+    this.endMenuScreenWidget,
     required this.mainScreenWidget,
     this.shadowLayer1Color,
     this.shadowLayer2Color,
@@ -18,6 +19,7 @@ class StyleDefaultWidget extends StatelessWidget {
   final bool showShadow;
   final double angle;
   final Widget menuScreenWidget;
+  final Widget? endMenuScreenWidget;
   final Widget mainScreenWidget;
   final Color? shadowLayer1Color;
   final Color? shadowLayer2Color;
@@ -35,6 +37,8 @@ class StyleDefaultWidget extends StatelessWidget {
 
     return Stack(
       children: [
+        if(endMenuScreenWidget != null)
+        endMenuScreenWidget!,
         menuScreenWidget,
         if (showShadow) ...[
           /// Displaying the first shadow

@@ -14,6 +14,7 @@ typedef DrawerStyleBuilder = Widget Function(
   double animationValue,
   double slideWidth,
   Widget menuScreen,
+  Widget? endMenuScreen,
   Widget mainScreen,
 );
 
@@ -21,6 +22,7 @@ class ZoomDrawer extends StatefulWidget {
   const ZoomDrawer({
     required this.menuScreen,
     required this.mainScreen,
+    this.endMenuScreen,
     this.style = DrawerStyle.defaultStyle,
     this.controller,
     this.mainScreenScale = 0.3,
@@ -51,6 +53,7 @@ class ZoomDrawer extends StatefulWidget {
     this.clipMainScreen = true,
     this.mainScreenTapClose = false,
     this.menuScreenTapClose = false,
+    this.endMenuScreenTapClose = false,
     this.mainScreenAbsorbPointer = true,
     this.shrinkMainScreen = false,
     this.boxShadow,
@@ -65,6 +68,9 @@ class ZoomDrawer extends StatefulWidget {
 
   /// Screen containing the menu/bottom screen
   final Widget menuScreen;
+
+  /// Screen containing the end menu/bottom screen
+  final Widget? endMenuScreen;
 
   /// Screen containing the main content to display
   final Widget mainScreen;
@@ -158,6 +164,9 @@ class ZoomDrawer extends StatefulWidget {
   /// Close drawer when tapping menuScreen
   final bool menuScreenTapClose;
 
+  /// Close drawer when tapping menuScreen
+  final bool endMenuScreenTapClose;
+
   /// Close drawer when tapping mainScreen
   final bool mainScreenTapClose;
 
@@ -199,6 +208,9 @@ class ZoomDrawerState extends State<ZoomDrawer>
   /// Decides where the drawer will reside in screen
   late int _slideDirection;
 
+  /// Decides where the end drawer will reside in screen
+  late int _endSlideDirection;
+
   /// Once drawer is open, _absorbingMainScreen will absorb any pointer to avoid
   /// mainScreen interactions
   late final ValueNotifier<bool> _absorbingMainScreen;
@@ -225,6 +237,8 @@ class ZoomDrawerState extends State<ZoomDrawer>
 
   /// Check whether drawer is open
   bool isOpen() => stateNotifier.value == DrawerState.open;
+
+  bool isEndOpen() => stateNotifier.value == DrawerState.openEnd;
 
   /// Decides if drag animation should start according to dragOffset
   void _onHorizontalDragStart(DragStartDetails startDetails) {
@@ -341,6 +355,12 @@ class ZoomDrawerState extends State<ZoomDrawer>
     }
   }
 
+  void _endMenuScreenTapHandler() {
+    if (widget.menuScreenTapClose && stateNotifier.value == DrawerState.openEnd) {
+      closeEnd();
+    }
+  }
+
   /// Open drawer
   TickerFuture? open() {
     if (mounted) {
@@ -371,6 +391,36 @@ class ZoomDrawerState extends State<ZoomDrawer>
     }
     return null;
   }
+  /// Open drawer
+  TickerFuture? openEnd() {
+    if (mounted) {
+      return _animationController.forward();
+    }
+    return null;
+  }
+
+  /// Close drawer
+  TickerFuture? closeEnd() {
+    if (mounted) {
+      return _animationController.reverse();
+    }
+    return null;
+  }
+
+  /// Toggle drawer,
+  /// forceToggle: Will toggle even if it's currently animating - defaults to false
+  TickerFuture? toggleEnd({bool forceToggle = false}) {
+    /// We use DrawerLastAction instead of DrawerState,
+    /// because on draging, Drawer state is always equal to DrawerState.opening
+    if (stateNotifier.value == DrawerState.openEnd ||
+        (forceToggle && drawerLastAction == DrawerLastAction.open)) {
+      return closeEnd();
+    } else if (stateNotifier.value == DrawerState.openEnd ||
+        (forceToggle && drawerLastAction == DrawerLastAction.closedEnd)) {
+      return openEnd();
+    }
+    return null;
+  }
 
   /// Assign widget methods to controller
   void _assignToController() {
@@ -380,6 +430,10 @@ class ZoomDrawerState extends State<ZoomDrawer>
     widget.controller!.close = close;
     widget.controller!.toggle = toggle;
     widget.controller!.isOpen = isOpen;
+    widget.controller!.openEnd = openEnd;
+    widget.controller!.closeEnd = closeEnd;
+    widget.controller!.toggleEnd = toggleEnd;
+    widget.controller!.isEndOpen = isEndOpen;
     widget.controller!.stateNotifier = stateNotifier;
   }
 
@@ -393,6 +447,11 @@ class ZoomDrawerState extends State<ZoomDrawer>
         if (drawerLastAction == DrawerLastAction.open &&
             _animationController.value < 1) {
           _stateNotifier.value = DrawerState.closing;
+        }else if (drawerLastAction == DrawerLastAction.openEnd &&
+            _animationController.value < 1) {
+          _stateNotifier.value = DrawerState.closingEnd;
+        } else if(drawerLastAction.name.contains('End')) {
+          _stateNotifier.value = DrawerState.openingEnd;
         } else {
           _stateNotifier.value = DrawerState.opening;
         }
@@ -401,18 +460,33 @@ class ZoomDrawerState extends State<ZoomDrawer>
         if (drawerLastAction == DrawerLastAction.closed &&
             _animationController.value > 0) {
           _stateNotifier.value = DrawerState.opening;
+        }else if (drawerLastAction == DrawerLastAction.closedEnd &&
+            _animationController.value > 0) {
+          _stateNotifier.value = DrawerState.openingEnd;
+        }  else if(drawerLastAction.name.contains('End')){
+          _stateNotifier.value = DrawerState.closingEnd;
         } else {
           _stateNotifier.value = DrawerState.closing;
         }
         break;
       case AnimationStatus.completed:
-        _stateNotifier.value = DrawerState.open;
-        _drawerLastAction = DrawerLastAction.open;
+        if(drawerLastAction.name.contains('End')){
+          _stateNotifier.value = DrawerState.openEnd;
+          _drawerLastAction = DrawerLastAction.openEnd;
+        }else {
+          _stateNotifier.value = DrawerState.open;
+          _drawerLastAction = DrawerLastAction.open;
+        }
         _absorbingMainScreen.value = widget.mainScreenAbsorbPointer;
         break;
       case AnimationStatus.dismissed:
-        _stateNotifier.value = DrawerState.closed;
-        _drawerLastAction = DrawerLastAction.closed;
+        if(drawerLastAction.name.contains('End')){
+          _stateNotifier.value = DrawerState.closedEnd;
+          _drawerLastAction = DrawerLastAction.closedEnd;
+        }else {
+          _stateNotifier.value = DrawerState.closed;
+          _drawerLastAction = DrawerLastAction.closed;
+        }
         _absorbingMainScreen.value = false;
         break;
     }
@@ -427,6 +501,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
     _assignToController();
 
     _slideDirection = widget.isRtl ? -1 : 1;
+    _endSlideDirection = widget.isRtl ? 1 : -1;
   }
 
   @override
@@ -434,6 +509,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isRtl != widget.isRtl) {
       _slideDirection = widget.isRtl ? -1 : 1;
+      _endSlideDirection = widget.isRtl ? 1 : -1;
     }
   }
 
@@ -485,11 +561,29 @@ class ZoomDrawerState extends State<ZoomDrawer>
         scalePercent = Interval(0.0, 1.0, curve: widget.closeCurve)
             .transform(_animationValue);
         break;
+      case DrawerState.openingEnd:
+        slidePercent = (widget.openCurve).transform(_animationValue);
+        scalePercent = Interval(0.0, 0.3, curve: widget.openCurve)
+            .transform(_animationValue);
+        break;
+      case DrawerState.closingEnd:
+        slidePercent = (widget.closeCurve).transform(_animationValue);
+        scalePercent = Interval(0.0, 1.0, curve: widget.closeCurve)
+            .transform(_animationValue);
+        break;
+      case DrawerState.openEnd:
+        slidePercent = 1.0;
+        scalePercent = 1.0;
+        break;
+      case DrawerState.closedEnd:
+        slidePercent = 0.0;
+        scalePercent = 0.0;
+        break;
     }
-
+    var slideDirection = stateNotifier.value.name.contains('End')?  _endSlideDirection : _slideDirection;
     /// Sliding
     final xPosition =
-        ((widget.slideWidth - slide) * _animationValue * _slideDirection) *
+        ((widget.slideWidth - slide) * _animationValue * slideDirection) *
             slidePercent;
 
     /// Scale
@@ -501,7 +595,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
     /// Rotation
     final rotationAngle =
         ((((angle ?? widget.angle) * pi) / 180) * _animationValue) *
-            _slideDirection;
+            slideDirection;
 
     return Transform(
       transform: Matrix4.translationValues(xPosition, 0.0, 0.0)
@@ -582,6 +676,69 @@ class ZoomDrawerState extends State<ZoomDrawer>
     }
 
     return menuScreen;
+  }
+
+  /// Builds the layers of endMenuScreen
+  Widget get endMenuScreenWidget {
+    // Add layer - GestureDetector
+    Widget endMenuScreen = GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      // onTap shouldn't be null to avoid loosing state
+      onTap: _endMenuScreenTapHandler,
+      // Full width and hight to make menuScreen behind mainScreen
+      child: SizedBox.expand(
+        // Without Align, SizedBox won't work
+        child: Align(
+          alignment: widget.isRtl ?  Alignment.topLeft : Alignment.topRight,
+          // By default menuScreen width is calculated based on slideWidth
+          // Unless user set menuScreenWidth
+          child: SizedBox(
+            width: widget.menuScreenWidth ??
+                widget.slideWidth -
+                    (context.screenWidth / widget.slideWidth) -
+                    50,
+            child: widget.menuScreen,
+          ),
+        ),
+      ),
+    );
+
+    // Add layer - Transform
+    if (widget.moveMenuScreen && widget.style != DrawerStyle.style1) {
+      final left = (1 - _animationValue) * widget.slideWidth * _slideDirection;
+      endMenuScreen = Transform.translate(
+        offset: Offset(-left, 0),
+        child: endMenuScreen,
+      );
+    }
+    // Add layer - Overlay color
+    // Material widget needs to be set after ColorFilter,
+    // Storing Material widget in variable will make
+    // ColorFiltered renders only 50% of the width
+    if (widget.menuScreenOverlayColor != null) {
+      final overlayColor = ColorTween(
+        begin: widget.menuScreenOverlayColor,
+        end: widget.menuScreenOverlayColor!.withOpacity(0.0),
+      );
+
+      endMenuScreen = ColorFiltered(
+        colorFilter: ColorFilter.mode(
+          overlayColor.lerp(_animationValue)!,
+          widget.overlayBlend,
+        ),
+        child: ColoredBox(
+          color: widget.menuBackgroundColor,
+          child: endMenuScreen,
+        ),
+      );
+    } else {
+      endMenuScreen = ColoredBox(
+        color: widget.menuBackgroundColor,
+        child: endMenuScreen,
+      );
+    }
+
+    return endMenuScreen;
   }
 
   /// Builds the layers of mainScreen
@@ -718,6 +875,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
           _animationValue,
           widget.slideWidth,
           menuScreenWidget,
+          endMenuScreenWidget,
           mainScreenWidget,
         ),
       );
@@ -787,6 +945,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
               animationController: _animationController,
               mainScreenWidget: mainScreenWidget,
               menuScreenWidget: menuScreenWidget,
+              endMenuScreenWidget: endMenuScreenWidget,
               angle: widget.angle,
               showShadow: widget.showShadow,
               shadowLayer1Color: widget.shadowLayer1Color,

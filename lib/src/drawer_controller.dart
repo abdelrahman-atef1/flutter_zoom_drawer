@@ -13,6 +13,17 @@ class ZoomDrawerController {
 
   /// Determine if status of drawer equals to Open
   bool Function()? isOpen;
+  /// Open end drawer
+  TickerFuture? Function()? openEnd;
+
+  /// Close end drawer
+  TickerFuture? Function()? closeEnd;
+
+  /// Toggle end drawer
+  TickerFuture? Function({bool forceToggle})? toggleEnd;
+
+  /// Determine if status of end drawer equals to Open
+  bool Function()? isEndOpen;
 
   /// Drawer state notifier
   /// opening, closing, open, closed
