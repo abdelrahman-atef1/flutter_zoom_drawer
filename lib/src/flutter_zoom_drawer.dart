@@ -413,10 +413,10 @@ class ZoomDrawerState extends State<ZoomDrawer>
     /// We use DrawerLastAction instead of DrawerState,
     /// because on draging, Drawer state is always equal to DrawerState.opening
     if (stateNotifier.value == DrawerState.openEnd ||
-        (forceToggle && drawerLastAction == DrawerLastAction.open)) {
+        (forceToggle && drawerLastAction == DrawerLastAction.openEnd)) {
       return closeEnd();
-    } else if (stateNotifier.value == DrawerState.openEnd ||
-        (forceToggle && drawerLastAction == DrawerLastAction.closedEnd)) {
+    } else if (stateNotifier.value == DrawerState.closed || stateNotifier.value == DrawerState.closedEnd ||
+        (forceToggle && (drawerLastAction == DrawerLastAction.closed || drawerLastAction == DrawerLastAction.closedEnd))) {
       return openEnd();
     }
     return null;
