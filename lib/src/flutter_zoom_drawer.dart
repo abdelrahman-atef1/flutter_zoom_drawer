@@ -394,7 +394,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
   /// Open drawer
   TickerFuture? openEnd() {
     if (mounted) {
-      _stateNotifier.value = DrawerState.closedEnd;
+      _drawerLastAction = DrawerLastAction.closedEnd;
       return _animationController.forward();
     }
     return null;
@@ -403,7 +403,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
   /// Close drawer
   TickerFuture? closeEnd() {
     if (mounted) {
-      _stateNotifier.value = DrawerState.openEnd;
+      _drawerLastAction = DrawerLastAction.openEnd;
       return _animationController.reverse();
     }
     return null;
