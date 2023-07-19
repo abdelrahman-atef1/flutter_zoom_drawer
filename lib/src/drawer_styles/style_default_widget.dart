@@ -13,6 +13,7 @@ class StyleDefaultWidget extends StatelessWidget {
     this.shadowLayer2Color,
     required this.drawerShadowsBackgroundColor,
     required this.applyDefaultStyle,
+    required this.showEndMenu,
   });
 
   final AnimationController animationController;
@@ -24,6 +25,7 @@ class StyleDefaultWidget extends StatelessWidget {
   final Color? shadowLayer1Color;
   final Color? shadowLayer2Color;
   final Color drawerShadowsBackgroundColor;
+  final bool showEndMenu;
   final Widget Function(
     Widget?, {
     double? angle,
@@ -37,8 +39,9 @@ class StyleDefaultWidget extends StatelessWidget {
 
     return Stack(
       children: [
-        if(endMenuScreenWidget != null)
+        if(endMenuScreenWidget != null && showEndMenu)
         endMenuScreenWidget!,
+        if(!showEndMenu)
         menuScreenWidget,
         if (showShadow) ...[
           /// Displaying the first shadow

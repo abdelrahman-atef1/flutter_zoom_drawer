@@ -957,6 +957,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
               shadowLayer2Color: widget.shadowLayer2Color,
               drawerShadowsBackgroundColor: widget.drawerShadowsBackgroundColor,
               applyDefaultStyle: _applyDefaultStyle,
+              showEndMenu: stateNotifier.value.name.contains('End'),
             ),
           );
       }
