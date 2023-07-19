@@ -385,8 +385,8 @@ class ZoomDrawerState extends State<ZoomDrawer>
     if (stateNotifier.value == DrawerState.open ||
         (forceToggle && drawerLastAction == DrawerLastAction.open)) {
       return close();
-    } else if (stateNotifier.value == DrawerState.closed ||
-        (forceToggle && drawerLastAction == DrawerLastAction.closed)) {
+    } else if (stateNotifier.value == DrawerState.closed || stateNotifier.value == DrawerState.closedEnd ||
+        (forceToggle && drawerLastAction == DrawerLastAction.closed || drawerLastAction == DrawerLastAction.closedEnd)) {
       return open();
     }
     return null;
@@ -583,6 +583,9 @@ class ZoomDrawerState extends State<ZoomDrawer>
         break;
     }
     var slideDirection = stateNotifier.value.name.contains('End')?  _endSlideDirection : _slideDirection;
+    var alignment = stateNotifier.value.name.contains('End')?  
+      widget.isRtl ? Alignment.centerLeft : Alignment.centerRight
+     : widget.isRtl ? Alignment.centerRight : Alignment.centerLeft;
     /// Sliding
     final xPosition =
         ((widget.slideWidth - slide) * _animationValue * slideDirection) *
@@ -603,7 +606,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
       transform: Matrix4.translationValues(xPosition, 0.0, 0.0)
         ..rotateZ(rotationAngle)
         ..scale(scalePercentage, scalePercentage),
-      alignment: widget.isRtl ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: alignment,
 
       // We exclude mainScreen from ClipRRect because it already has borderRadius applied
       // Only mainScreen has Scale of 1 while others has < 1
