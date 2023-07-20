@@ -927,9 +927,12 @@ class ZoomDrawerState extends State<ZoomDrawer>
     // Add layer - GestureDetector
     if (widget.mainScreenTapClose) {
       mainScreen = GestureDetector(
-        behavior: HitTestBehavior.translucent,
+        behavior: HitTestBehavior.opaque,
         onTap: _mainScreenTapHandler,
-        child: mainScreen,
+        child: AbsorbPointer(
+          absorbing: stateNotifier.value.name.contains('open'),
+          child: mainScreen,
+        ),
       );
     }
 
