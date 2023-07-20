@@ -70,6 +70,8 @@ class ZoomDrawer extends StatefulWidget {
   final Widget menuScreen;
 
   /// Screen containing the end menu/bottom screen
+  /// 
+  /// Note: Applies to defaultStyle only and doesn't support RTL yet
   final Widget? endMenuScreen;
 
   /// Screen containing the main content to display
@@ -204,6 +206,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
     with SingleTickerProviderStateMixin {
   /// Triggers drag animation
   bool _shouldDrag = false;
+  bool _shouldDragEnd = false;
 
   /// Decides where the drawer will reside in screen
   late int _slideDirection;
@@ -246,42 +249,63 @@ class ZoomDrawerState extends State<ZoomDrawer>
     final maxDragSlide = widget.isRtl
         ? context.screenWidth - widget.dragOffset
         : widget.dragOffset;
+    final maxDragSlideEnd = widget.isRtl
+        ? widget.dragOffset
+        : context.screenWidth - widget.dragOffset;
+    final bool isDraggingEnd = 
+      (widget.isRtl && startDetails.globalPosition.dx < maxDragSlideEnd) || 
+      (!widget.isRtl && startDetails.globalPosition.dx > maxDragSlideEnd) || 
+      stateNotifier.value == DrawerState.openEnd;
 
     // Will help us to set the offset according to RTL value
-    // Without this user can open the drawer without respecing initial offset required
+    // Without this user can open the drawer without respecting initial offset required
     final toggleValue = widget.isRtl
         ? _animationController.isCompleted
         : _animationController.isDismissed;
 
-    final isDraggingFromLeft =
+    final isDraggingFromLeft = !isDraggingEnd &&
         toggleValue && startDetails.globalPosition.dx < maxDragSlide;
 
-    final isDraggingFromRight =
+    final isDraggingFromRight = !isDraggingEnd &&
         !toggleValue && startDetails.globalPosition.dx > maxDragSlide;
+  
+    final isDraggingEndFromLeft = isDraggingEnd &&
+        !toggleValue && startDetails.globalPosition.dx < maxDragSlideEnd;
+
+    final isDraggingEndFromRight = isDraggingEnd &&
+        toggleValue && startDetails.globalPosition.dx > maxDragSlideEnd;
 
     _shouldDrag = isDraggingFromLeft || isDraggingFromRight;
+    _shouldDragEnd = isDraggingEndFromLeft || isDraggingEndFromRight;
   }
 
   /// Update animation value continuesly upon draging.
   void _onHorizontalDragUpdate(DragUpdateDetails updateDetails) {
     /// Drag animation can be triggered when _shouldDrag is true,
     /// or when DrawerState is opening or closing
-    if (_shouldDrag == false &&
-        ![DrawerState.opening, DrawerState.closing]
+    if (_shouldDrag == false && _shouldDragEnd == false && 
+        ![DrawerState.opening, DrawerState.closing,DrawerState.openingEnd, DrawerState.closingEnd]
             .contains(_stateNotifier.value)) {
       return;
     }
 
-    final dragSensitivity = drawerLastAction == DrawerLastAction.open
+    final dragSensitivity = drawerLastAction == DrawerLastAction.open || drawerLastAction == DrawerLastAction.openEnd
         ? widget.closeDragSensitivity
         : widget.openDragSensitivity;
 
     final delta = updateDetails.primaryDelta ?? 0 / widget.dragOffset;
-
-    if (widget.isRtl) {
-      _animationController.value -= delta / dragSensitivity;
-    } else {
-      _animationController.value += delta / dragSensitivity;
+    if(_shouldDrag == true){
+      if (widget.isRtl) {
+        _animationController.value -= delta / dragSensitivity;
+      } else {
+        _animationController.value += delta / dragSensitivity;
+      }
+    }else {
+      if (widget.isRtl) {
+        _animationController.value += delta / dragSensitivity;
+      } else {
+        _animationController.value -= delta / dragSensitivity;
+      }
     }
   }
 
@@ -305,7 +329,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
     if (willFling) {
       // Strong swipe will cause the animation continue to its destination
       final visualVelocityInPx = dragEndDetails.velocity.pixelsPerSecond.dx /
-          (context.screenWidth * 50);
+          (context.screenWidth * 50) * (_shouldDragEnd? -1 : 1);
 
       final visualVelocityInPxRTL = -visualVelocityInPx;
 
@@ -340,12 +364,38 @@ class ZoomDrawerState extends State<ZoomDrawer>
       // Continue animation to open the drawer
       open();
     }
+    else if (drawerLastAction == DrawerLastAction.openEnd) {
+      // Because drawer is open, Animation value starts from 1.0 to 0
+      if (_animationController.value > 0.65) {
+        // User have not passed 35% of animation value
+        // Return back to initial position
+        openEnd();
+        return;
+      }
+      // Continue animation to close the drawer
+      closeEnd();
+    } else if (drawerLastAction == DrawerLastAction.closedEnd) {
+      // Because drawer is closed, Animation value starts from 0 to 1.0
+      if (_animationController.value < 0.35) {
+        // User have not passed 35% of animation value
+        // Return back to initial position
+        closeEnd();
+        return;
+      }
+      // Continue animation to open the drawer
+      openEnd();
+    }
   }
 
   /// Close drawer on Tap
   void _mainScreenTapHandler() {
-    if (widget.mainScreenTapClose && stateNotifier.value == DrawerState.open) {
-      close();
+    if(widget.mainScreenTapClose){
+      if (stateNotifier.value == DrawerState.open) {
+        close();
+      }
+      if (stateNotifier.value == DrawerState.openEnd) {
+        closeEnd();
+      }
     }
   }
 
@@ -364,6 +414,9 @@ class ZoomDrawerState extends State<ZoomDrawer>
   /// Open drawer
   TickerFuture? open() {
     if (mounted) {
+      _shouldDrag = true;
+      _shouldDragEnd = false;
+      _drawerLastAction = DrawerLastAction.closed;
       return _animationController.forward();
     }
     return null;
@@ -372,6 +425,9 @@ class ZoomDrawerState extends State<ZoomDrawer>
   /// Close drawer
   TickerFuture? close() {
     if (mounted) {
+      _shouldDrag = true;
+      _shouldDragEnd = false;
+      _drawerLastAction = DrawerLastAction.open;
       return _animationController.reverse();
     }
     return null;
@@ -382,6 +438,8 @@ class ZoomDrawerState extends State<ZoomDrawer>
   TickerFuture? toggle({bool forceToggle = false}) {
     /// We use DrawerLastAction instead of DrawerState,
     /// because on draging, Drawer state is always equal to DrawerState.opening
+    _shouldDrag = true;
+    _shouldDragEnd = false;
     if (stateNotifier.value == DrawerState.open ||
         (forceToggle && drawerLastAction == DrawerLastAction.open)) {
       return close();
@@ -394,6 +452,8 @@ class ZoomDrawerState extends State<ZoomDrawer>
   /// Open drawer
   TickerFuture? openEnd() {
     if (mounted) {
+      _shouldDrag = false;
+      _shouldDragEnd = true;
       _drawerLastAction = DrawerLastAction.closedEnd;
       return _animationController.forward();
     }
@@ -403,6 +463,8 @@ class ZoomDrawerState extends State<ZoomDrawer>
   /// Close drawer
   TickerFuture? closeEnd() {
     if (mounted) {
+      _shouldDrag = false;
+      _shouldDragEnd = true;
       _drawerLastAction = DrawerLastAction.openEnd;
       return _animationController.reverse();
     }
@@ -414,6 +476,8 @@ class ZoomDrawerState extends State<ZoomDrawer>
   TickerFuture? toggleEnd({bool forceToggle = false}) {
     /// We use DrawerLastAction instead of DrawerState,
     /// because on draging, Drawer state is always equal to DrawerState.opening
+    _shouldDrag = false;
+    _shouldDragEnd = true;
     if (stateNotifier.value == DrawerState.openEnd ||
         (forceToggle && drawerLastAction == DrawerLastAction.openEnd)) {
       return closeEnd();
@@ -441,6 +505,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
 
   /// Updates stateNotifier, drawerLastAction, and _absorbingMainScreen
   void _animationStatusListener(AnimationStatus status) {
+    var previousState = _stateNotifier.value;
     switch (status) {
       /// The to animation.fling causes the AnimationStatus to be
       /// emitted with forward & reverse for the same action
@@ -452,27 +517,27 @@ class ZoomDrawerState extends State<ZoomDrawer>
         }else if (drawerLastAction == DrawerLastAction.openEnd &&
             _animationController.value < 1) {
           _stateNotifier.value = DrawerState.closingEnd;
-        } else if(drawerLastAction.name.contains('End')) {
+        } else if(drawerLastAction.name.contains('closed') && _shouldDragEnd) {
           _stateNotifier.value = DrawerState.openingEnd;
         } else {
           _stateNotifier.value = DrawerState.opening;
         }
         break;
       case AnimationStatus.reverse:
-        if (drawerLastAction == DrawerLastAction.closed &&
+        if (drawerLastAction.name.contains('closed') && _shouldDrag &&
             _animationController.value > 0) {
           _stateNotifier.value = DrawerState.opening;
-        }else if (drawerLastAction == DrawerLastAction.closedEnd &&
+        }else if (drawerLastAction.name.contains('closed') && _shouldDragEnd && 
             _animationController.value > 0) {
           _stateNotifier.value = DrawerState.openingEnd;
-        }  else if(drawerLastAction.name.contains('End')){
+        }  else if(drawerLastAction.name.contains('End')|| _shouldDragEnd){
           _stateNotifier.value = DrawerState.closingEnd;
         } else {
           _stateNotifier.value = DrawerState.closing;
         }
         break;
       case AnimationStatus.completed:
-        if(drawerLastAction.name.contains('End')){
+        if(_shouldDragEnd){
           _stateNotifier.value = DrawerState.openEnd;
           _drawerLastAction = DrawerLastAction.openEnd;
         }else {
@@ -482,7 +547,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
         _absorbingMainScreen.value = widget.mainScreenAbsorbPointer;
         break;
       case AnimationStatus.dismissed:
-        if(drawerLastAction.name.contains('End')){
+        if(_shouldDragEnd){
           _stateNotifier.value = DrawerState.closedEnd;
           _drawerLastAction = DrawerLastAction.closedEnd;
         }else {
@@ -491,6 +556,11 @@ class ZoomDrawerState extends State<ZoomDrawer>
         }
         _absorbingMainScreen.value = false;
         break;
+    }
+    if(previousState.name.contains('End') != _stateNotifier.value.name.contains('End')){
+      setState(() {
+        print('SetState:${_stateNotifier.value.name}');
+      });
     }
   }
 
@@ -702,7 +772,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
                 widget.slideWidth -
                     (context.screenWidth / widget.slideWidth) -
                     50,
-            child: widget.menuScreen,
+            child: widget.endMenuScreen,
           ),
         ),
       ),
@@ -710,7 +780,7 @@ class ZoomDrawerState extends State<ZoomDrawer>
 
     // Add layer - Transform
     if (widget.moveMenuScreen && widget.style != DrawerStyle.style1) {
-      final left = (1 - _animationValue) * widget.slideWidth * _slideDirection;
+      final left = (1 - _animationValue) * widget.slideWidth * _endSlideDirection;
       endMenuScreen = Transform.translate(
         offset: Offset(-left, 0),
         child: endMenuScreen,
